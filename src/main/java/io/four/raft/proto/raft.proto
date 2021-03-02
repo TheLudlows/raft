@@ -16,8 +16,9 @@ message VoteRequest {
 };
 
 message VoteResponse {
-  uint64 term = 1; // 当前任期号，以便于候选人去更新自己的任期号
-  bool granted = 2; // 候选人赢得了此张选票时为真
+  uint32 server_id = 1;
+  uint64 term = 2; // 当前任期号，以便于候选人去更新自己的任期号
+  bool granted = 3; // 候选人赢得了此张选票时为真
 };
 
 message ClusterConfig {

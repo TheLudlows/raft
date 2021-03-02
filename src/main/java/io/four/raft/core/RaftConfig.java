@@ -6,10 +6,15 @@ import lombok.Data;
 public class RaftConfig {
 
     //Milliseconds
-    private int electionFrom = 4000;
-    private int electionTo = 5000;
+    private int electionFrom = 4000*2;
+    private int electionTo = 5000*2;
 
     private int heartbeatTime = 500;
 
     private String dir;
+
+    /**
+     * 选举rpc超时
+     */
+    private int electionTimeout = 1000;
 }
