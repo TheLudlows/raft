@@ -81,16 +81,17 @@ public class RaftNode {
             }
             // pre vote
             this.state = STATE_PRE_CANDIDATE;
+
+            for (RemoteNodeClient node : cluster) {
+                CompletableFuture.supplyAsync(() -> node.preVote(buildVoteRest()))
+                        .orTimeout(config.getElectionTimeout(), MILLISECONDS)
+                        .whenCompleteAsync((r, e) -> processPreVoteResp(r, e, term));
+            }
+            LOG.info("end  preVote");
+            startElectionTask();
         } finally {
             lock.unlock();
         }
-        for (RemoteNodeClient node : cluster) {
-            CompletableFuture.supplyAsync(() -> node.preVote(buildVoteRest()))
-                    .orTimeout(config.getElectionTimeout(), MILLISECONDS)
-                    .whenCompleteAsync((r, e) -> processPreVoteResp(r, e, term));
-        }
-        LOG.info("end  preVote");
-        startElectionTask();
     }
 
     private void processPreVoteResp(VoteResponse response, Throwable e, long oldTerm) {
@@ -150,7 +151,6 @@ public class RaftNode {
             if (response.getTerm() > term) {
                 LOG.info("已经有leader了");
                 toFollower();
-                return;
             } else {
                 vote(response.getServerId(), cluster, response.getGranted());
                 // 判断是否获胜出预选

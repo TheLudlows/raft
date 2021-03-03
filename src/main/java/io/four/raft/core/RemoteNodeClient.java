@@ -9,6 +9,9 @@ import io.four.raft.proto.Raft.*;
 
 import java.util.List;
 
+import static io.four.raft.core.Utils.LOG;
+import static io.four.raft.core.Utils.format;
+
 @Data
 public class RemoteNodeClient {
     private int term;
@@ -27,20 +30,36 @@ public class RemoteNodeClient {
                 server.getPort()));
         remoteService = BrpcProxy.getProxy(rpcClient, RaftRemoteService.class);
         catchUp = false;
+
     }
 
     public VoteResponse preVote(VoteRequest voteRequest) {
-        this.voted = false;
-        return remoteService.preVote(voteRequest);
+        try {
+            this.voted = false;
+            return remoteService.preVote(voteRequest);
+        }catch (Exception e) {
+            LOG.error("RemoteNodeClient preVote err {}", voteRequest);
+            return buildError(voteRequest.getServerId());
+        }
     }
 
     public VoteResponse vote(VoteRequest voteRequest) {
-        this.voted = false;
-        return remoteService.vote(voteRequest);
+        try {
+            this.voted = false;
+            return remoteService.vote(voteRequest);
+        }catch (Exception e) {
+            LOG.error("RemoteNodeClient vote err {}", voteRequest);
+            return buildError(voteRequest.getServerId());
+        }
     }
 
     public AppendEntriesResponse appendEntries(AppendEntriesRequest request) {
-        return remoteService.appendEntries(request);
+        try {
+            return remoteService.appendEntries(request);
+        }catch (Exception e) {
+            LOG.error("RemoteNodeClient appendEntries err {}", format(request));
+            return buildErrApp();
+        }
     }
 
     public static void vote(int serverId, List<RemoteNodeClient> nodes, boolean voted) {
@@ -57,6 +76,16 @@ public class RemoteNodeClient {
         for(RemoteNodeClient node :nodes)
             if(node.voted) n++;
         return n;
+    }
+
+    VoteResponse buildError(int id) {
+       return VoteResponse.newBuilder().setGranted(false)
+                .setTerm(0).setServerId(id).build();
+    }
+
+    AppendEntriesResponse buildErrApp() {
+      return   AppendEntriesResponse.newBuilder().setResCode(-1)
+                .build();
     }
 
 }
