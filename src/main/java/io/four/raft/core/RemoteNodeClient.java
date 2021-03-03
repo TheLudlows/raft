@@ -10,7 +10,7 @@ import io.four.raft.proto.Raft.*;
 import java.util.List;
 
 @Data
-public class RemoteNode {
+public class RemoteNodeClient {
     private int term;
     private Server server;
     private long nextIndex;
@@ -20,7 +20,7 @@ public class RemoteNode {
     private RaftRemoteService remoteService;
     private boolean voted;
 
-    public RemoteNode(Server server) {
+    public RemoteNodeClient(Server server) {
         this.server = server;
         this.rpcClient = new RpcClient(new Endpoint(
                 server.getHost(),
@@ -39,8 +39,12 @@ public class RemoteNode {
         return remoteService.vote(voteRequest);
     }
 
-    public static void vote(int serverId, List<RemoteNode> nodes, boolean voted) {
-        for(RemoteNode node :nodes) {
+    public AppendEntriesResponse appendEntries(AppendEntriesRequest request) {
+        return remoteService.appendEntries(request);
+    }
+
+    public static void vote(int serverId, List<RemoteNodeClient> nodes, boolean voted) {
+        for(RemoteNodeClient node :nodes) {
             if(node.getServer().getServerId() == serverId) {
                 node.setVoted(voted);
                 return;
@@ -48,9 +52,9 @@ public class RemoteNode {
         }
     }
 
-    public static int countVote(List<RemoteNode> nodes) {
+    public static int countVote(List<RemoteNodeClient> nodes) {
         int n = 1;
-        for(RemoteNode node :nodes)
+        for(RemoteNodeClient node :nodes)
             if(node.voted) n++;
         return n;
     }

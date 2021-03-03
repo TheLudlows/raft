@@ -3,6 +3,8 @@ package io.four.raft.core;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
+import com.google.protobuf.Message;
+import com.googlecode.protobuf.format.JsonFormat;
 import io.four.raft.proto.Raft;
 import org.slf4j.LoggerFactory;
 
@@ -12,6 +14,12 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class Utils {
     public static Logger LOG;
+    static final JsonFormat format = new JsonFormat();
+
+    public static final String format(Message msg) {
+       return format.printToString(msg);
+    }
+
     static {
         LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
         //设置全局日志级别

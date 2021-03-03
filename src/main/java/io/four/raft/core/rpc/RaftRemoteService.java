@@ -6,4 +6,6 @@ public interface RaftRemoteService {
     VoteResponse preVote(VoteRequest request);
 
     VoteResponse vote(VoteRequest request);
+
+    AppendEntriesResponse appendEntries(AppendEntriesRequest request);
 }
