@@ -18,7 +18,7 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
     @Override
     public VoteResponse preVote(VoteRequest request) {
         raftNode.getLock().lock();
-        Server server = raftNode.getLocalServer();
+        Server server = raftNode.getServerInfo();
         VoteResponse.Builder builder = VoteResponse.newBuilder()
                 .setServerId(server.getServerId())
                 .setGranted(false)
@@ -47,7 +47,7 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
         VoteResponse.Builder builder = VoteResponse.newBuilder();
         builder.setGranted(false).setTerm(raftNode.getTerm());
         try {
-            Logger.info("vote server {} vote for {}", raftNode.getLocalServer().getServerId(), format(request));
+            Logger.info("vote server {} vote for {}", raftNode.getServerInfo().getServerId(), format(request));
 
             if (raftNode.getTerm() > request.getTerm() || !raftNode.inCluster(request.getServerId())) {
                 return builder.build();
@@ -59,7 +59,7 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
                 raftNode.setVoteFor(request.getServerId());
 
                 VoteResponse response = builder.setTerm(raftNode.getTerm())
-                        .setServerId(raftNode.getLocalServer().getServerId())
+                        .setServerId(raftNode.getServerInfo().getServerId())
                         .build();
                 Logger.info("vote server {} vote for {}", raftNode.toString(), format(request));
                 return response;

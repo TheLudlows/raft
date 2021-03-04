@@ -12,21 +12,16 @@ import io.four.raft.proto.Raft.*;
 import org.tinylog.Logger;
 
 import static io.four.raft.core.NodeState.*;
-import static io.four.raft.core.RemoteNodeClient.*;
+import static io.four.raft.core.RemoteNode.*;
 import static io.four.raft.core.Utils.*;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
-public class RaftNode {
+public class RaftNode extends Node {
     private RaftConfig config;
-    private Server localServer; // server info
-    private List<RemoteNodeClient> cluster;
+    private List<RemoteNode> cluster;
     private ClusterConfig clusterConfig;
-    private NodeState state = NodeState.STATE_FOLLOWER;
-    private long term;
-    private int leaderId;
     private long commitIndex;
     private long applyIndex;
-    private int voteFor;
     private StateMachine stateMachine;
 
     private Lock lock = new ReentrantLock();
@@ -36,25 +31,24 @@ public class RaftNode {
 
     private ScheduledExecutorService scheduledExecutorService;
     private ExecutorService executorService;
-
     private RpcServer rpcServer;
 
-    public RaftNode(List<Server> servers, Server localServer, StateMachine stateMachine, RaftConfig config) {
+    public RaftNode(List<Server> servers, Server serverInfo, StateMachine stateMachine, RaftConfig config) {
         this.cluster = new ArrayList<>();
-        this.localServer = localServer;
-        servers.stream().filter(e -> e.getServerId() != localServer.getServerId()).forEach(server -> cluster.add(new RemoteNodeClient(server)));
+        this.serverInfo = serverInfo;
+        servers.stream().filter(e -> e.getServerId() != serverInfo.getServerId()).forEach(server -> cluster.add(new RemoteNode(server)));
         this.stateMachine = stateMachine;
         this.config = config;
         this.clusterConfig = ClusterConfig.newBuilder().addAllServers(servers).build();
         Logger.info(format(clusterConfig));
 
         this.scheduledExecutorService = new ScheduledThreadPoolExecutor(2);
-        this.rpcServer = new RpcServer(localServer.getHost(), localServer.getPort());
+        this.rpcServer = new RpcServer(serverInfo.getHost(), serverInfo.getPort());
         this.executorService = Executors.newFixedThreadPool(4);
     }
 
-    public RaftNode(String servers, String localServer, StateMachine stateMachine) {
-        this(parseServers(servers), parseServer(localServer), stateMachine, new RaftConfig());
+    public RaftNode(String servers, String serverInfo, StateMachine stateMachine) {
+        this(parseServers(servers), parseServer(serverInfo), stateMachine, new RaftConfig());
     }
 
     public void init() {
@@ -83,7 +77,7 @@ public class RaftNode {
             // pre vote
             this.state = STATE_PRE_CANDIDATE;
 
-            for (RemoteNodeClient node : cluster) {
+            for (RemoteNode node : cluster) {
                 CompletableFuture.supplyAsync(() -> node.preVote(buildVoteRest()))
                         .orTimeout(config.getElectionTimeout(), MILLISECONDS)
                         .whenCompleteAsync((r, e) -> processPreVoteResp(r, e, term));
@@ -98,10 +92,6 @@ public class RaftNode {
     private void processPreVoteResp(VoteResponse response, Throwable e, long oldTerm) {
         lock.lock();
         try {
-            if (e != null) {
-                Logger.error("Pre vote err" + e);
-                return;
-            }
             Logger.info("pre vote resp {} {}", format(response), state);
             // if pass start vote to be candidate
             if (state != STATE_PRE_CANDIDATE || term != oldTerm) {
@@ -109,13 +99,14 @@ public class RaftNode {
                 return;
             }
             if (response.getTerm() > term) {
-                Logger.info("已经有leader了");
                 toFollower(response.getTerm());
                 return;
             } else {
-                vote(response.getServerId(), cluster, response.getGranted());
+                if (response.getGranted()) {
+                    vote(response.getServerId(), cluster, serverInfo.getServerId());
+                }
                 // 判断是否获胜出预选
-                if (countVote(cluster) > (clusterConfig.getServersList().size()) / 2) {
+                if (countVote(cluster, serverInfo.getServerId()) > (clusterConfig.getServersList().size()) / 2) {
                     startVote();
                 }
             }
@@ -130,8 +121,8 @@ public class RaftNode {
         lock.lock();
         term++;
         state = STATE_CANDIDATE;
-        voteFor = localServer.getServerId();
-        for (RemoteNodeClient node : cluster) {
+        voteFor = serverInfo.getServerId();
+        for (RemoteNode node : cluster) {
             CompletableFuture.supplyAsync(() -> node.vote(buildVoteRest()))
                     .orTimeout(config.getElectionTimeout(), MILLISECONDS)
                     .whenCompleteAsync((r, t) -> processVoteResp(r, term));
@@ -153,9 +144,11 @@ public class RaftNode {
                 Logger.info("已经有leader了");
                 toFollower(response.getTerm());
             } else {
-                vote(response.getServerId(), cluster, response.getGranted());
+                if (response.getGranted()) {
+                    vote(response.getServerId(), cluster, serverInfo.getServerId());
+                }
                 // 判断是否获胜出预选
-                if (countVote(cluster) > (clusterConfig.getServersList().size()) / 2) {
+                if (countVote(cluster, serverInfo.getServerId()) > (clusterConfig.getServersList().size()) / 2) {
                     toLeader();
                 }
             }
@@ -167,11 +160,11 @@ public class RaftNode {
     private void toLeader() {
         try {
             state = STATE_LEADER;
-            leaderId = localServer.getServerId();
+            leaderId = serverInfo.getServerId();
             if (electionScheduledFuture != null && !electionScheduledFuture.isDone()) {
                 electionScheduledFuture.cancel(true);
             }
-            Logger.info("become leader, start send heart beat to");
+            Logger.info("Become leader{}", this.toString());
             startHeartbeat();
         } catch (Exception e) {
             Logger.info("to leader err ", e);
@@ -181,19 +174,20 @@ public class RaftNode {
     public void toFollower(long term) {
         state = STATE_FOLLOWER;
         this.term = term;
-        Logger.info("to follower ,and stop hear beat!");
+        Logger.info("To follower {}", this.toString());
         startElectionTask();
         if (heartbeatScheduledFuture != null && heartbeatScheduledFuture.isDone()) {
             heartbeatScheduledFuture.cancel(true);
         }
     }
+
     public void toFollower(long term, int leaderId) {
         this.voteFor = leaderId;
         toFollower(term);
     }
 
 
-        private void startHeartbeat() {
+    private void startHeartbeat() {
         if (heartbeatScheduledFuture != null && !heartbeatScheduledFuture.isDone()) {
             heartbeatScheduledFuture.cancel(true);
         }
@@ -202,7 +196,7 @@ public class RaftNode {
 
     void heartBeatJob() {
         lock.lock();
-        for (RemoteNodeClient node : cluster) {
+        for (RemoteNode node : cluster) {
             executorService.submit(() -> node.appendEntries(buildPingEntry()));
         }
         startHeartbeat();
@@ -211,12 +205,12 @@ public class RaftNode {
 
     private AppendEntriesRequest buildPingEntry() {
         return AppendEntriesRequest.newBuilder().setTerm(term)
-                .setServerId(localServer.getServerId())
+                .setServerId(serverInfo.getServerId())
                 .build();
     }
 
     VoteRequest buildVoteRest() {
-        return VoteRequest.newBuilder().setServerId(localServer.getServerId())
+        return VoteRequest.newBuilder().setServerId(serverInfo.getServerId())
                 .setTerm(term)
                 .setLastLogTerm(/**log.get**/term)
                 .setLastLogIndex(/**log.get_last_index**/0)
@@ -235,7 +229,7 @@ public class RaftNode {
     }
 
     private boolean inCluster() {
-        return clusterConfig.getServersList().contains(localServer);
+        return clusterConfig.getServersList().contains(serverInfo);
     }
 
     public boolean inCluster(int server_id) {
@@ -247,38 +241,12 @@ public class RaftNode {
         return false;
     }
 
-    public Server getLocalServer() {
-        return localServer;
-    }
-
-    public long getTerm() {
-        return term;
-    }
-
-    public RaftNode setTerm(long term) {
-        this.term = term;
-        return this;
-    }
-
-    public int getVoteFor() {
-        return voteFor;
-    }
-
-    public RaftNode setVoteFor(int voteFor) {
-        this.voteFor = voteFor;
-        return this;
-    }
-
     public Lock getLock() {
         return lock;
     }
 
-    public NodeState getState() {
-        return state;
-    }
-
     @Override
     public String toString() {
-        return "RaftNode{localServer=" + localServer.getServerId() + ", state=" + state + ", term=" + term + ", voteFor=" + voteFor + '}';
+        return "RaftNode{localServer=" + serverInfo.getServerId() + ", state=" + state + ", term=" + term + ", voteFor=" + voteFor + '}';
     }
 }

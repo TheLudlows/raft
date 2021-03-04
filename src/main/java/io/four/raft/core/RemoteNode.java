@@ -13,18 +13,15 @@ import java.util.List;
 import static io.four.raft.core.Utils.format;
 
 @Data
-public class RemoteNodeClient {
-    private int term;
-    private Server server;
+public class RemoteNode extends Node {
     private long nextIndex;
     private long matchIndex;
     private boolean catchUp;
     private RpcClient rpcClient;
     private RaftRemoteService remoteService;
-    private boolean voted;
 
-    public RemoteNodeClient(Server server) {
-        this.server = server;
+    public RemoteNode(Server server) {
+        this.serverInfo = server;
         this.rpcClient = new RpcClient(new Endpoint(
                 server.getHost(),
                 server.getPort()));
@@ -35,7 +32,7 @@ public class RemoteNodeClient {
 
     public VoteResponse preVote(VoteRequest voteRequest) {
         try {
-            this.voted = false;
+            this.voteFor = 0;
             return remoteService.preVote(voteRequest);
         }catch (Exception e) {
             Logger.warn("RemoteNodeClient preVote err {}", voteRequest);
@@ -45,10 +42,10 @@ public class RemoteNodeClient {
 
     public VoteResponse vote(VoteRequest voteRequest) {
         try {
-            this.voted = false;
+            this.voteFor = 0;
             return remoteService.vote(voteRequest);
         }catch (Exception e) {
-            Logger.warn("RemoteNodeClient vote err {} to {}", format(voteRequest), format(server));
+            Logger.warn("RemoteNodeClient vote err {} to {}", format(voteRequest), format(serverInfo));
             return buildwarn(voteRequest.getServerId());
         }
     }
@@ -57,24 +54,24 @@ public class RemoteNodeClient {
         try {
             return remoteService.appendEntries(request);
         }catch (Exception e) {
-            Logger.warn("RemoteNodeClient appendEntries err {} to {}", format(request), format(server));
+            Logger.warn("RemoteNodeClient appendEntries err {} to {}", format(request), format(serverInfo));
             return buildErrApp();
         }
     }
 
-    public static void vote(int serverId, List<RemoteNodeClient> nodes, boolean voted) {
-        for(RemoteNodeClient node :nodes) {
-            if(node.getServer().getServerId() == serverId) {
-                node.setVoted(voted);
+    public static void vote(int serverId, List<RemoteNode> nodes, int local) {
+        for(RemoteNode node :nodes) {
+            if(node.getServerInfo().getServerId() == serverId) {
+                node.setVoteFor(local);
                 return;
             }
         }
     }
 
-    public static int countVote(List<RemoteNodeClient> nodes) {
+    public static int countVote(List<RemoteNode> nodes, int local) {
         int n = 1;
-        for(RemoteNodeClient node :nodes)
-            if(node.voted) n++;
+        for(RemoteNode node :nodes)
+            if(node.voteFor == local) n++;
         return n;
     }
 
