@@ -6,10 +6,10 @@ import com.baidu.brpc.client.channel.Endpoint;
 import io.four.raft.core.rpc.RaftRemoteService;
 import lombok.Data;
 import io.four.raft.proto.Raft.*;
+import org.tinylog.Logger;
 
 import java.util.List;
 
-import static io.four.raft.core.Utils.LOG;
 import static io.four.raft.core.Utils.format;
 
 @Data
@@ -38,8 +38,8 @@ public class RemoteNodeClient {
             this.voted = false;
             return remoteService.preVote(voteRequest);
         }catch (Exception e) {
-            LOG.error("RemoteNodeClient preVote err {}", voteRequest);
-            return buildError(voteRequest.getServerId());
+            Logger.warn("RemoteNodeClient preVote err {}", voteRequest);
+            return buildwarn(voteRequest.getServerId());
         }
     }
 
@@ -48,8 +48,8 @@ public class RemoteNodeClient {
             this.voted = false;
             return remoteService.vote(voteRequest);
         }catch (Exception e) {
-            LOG.error("RemoteNodeClient vote err {}", voteRequest);
-            return buildError(voteRequest.getServerId());
+            Logger.warn("RemoteNodeClient vote err {} to {}", format(voteRequest), format(server));
+            return buildwarn(voteRequest.getServerId());
         }
     }
 
@@ -57,7 +57,7 @@ public class RemoteNodeClient {
         try {
             return remoteService.appendEntries(request);
         }catch (Exception e) {
-            LOG.error("RemoteNodeClient appendEntries err {}", format(request));
+            Logger.warn("RemoteNodeClient appendEntries err {} to {}", format(request), format(server));
             return buildErrApp();
         }
     }
@@ -78,7 +78,7 @@ public class RemoteNodeClient {
         return n;
     }
 
-    VoteResponse buildError(int id) {
+    VoteResponse buildwarn(int id) {
        return VoteResponse.newBuilder().setGranted(false)
                 .setTerm(0).setServerId(id).build();
     }

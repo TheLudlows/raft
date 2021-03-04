@@ -1,31 +1,22 @@
 package io.four.raft.core;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.LoggerContext;
+
 import com.google.protobuf.Message;
 import com.googlecode.protobuf.format.JsonFormat;
 import io.four.raft.proto.Raft;
-import org.slf4j.LoggerFactory;
+import org.tinylog.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class Utils {
-    public static Logger LOG;
     static final JsonFormat format = new JsonFormat();
 
     public static final String format(Message msg) {
        return format.printToString(msg);
     }
 
-    static {
-        LoggerContext loggerContext = (LoggerContext) LoggerFactory.getILoggerFactory();
-        //设置全局日志级别
-        LOG = loggerContext.getLogger("root");
-        LOG.setLevel(Level.toLevel("info"));
-    }
 
     public static int round(int from, int to) {
         return ThreadLocalRandom.current().nextInt(from, to);
@@ -46,5 +37,9 @@ public class Utils {
         return Raft.Server.newBuilder().setHost(arr[0])
                 .setPort(Integer.parseInt(arr[1]))
                 .setServerId(Integer.parseInt(arr[2])).build();
+    }
+
+    public static void main(String[] args) {
+        Logger.info("asdada");
     }
 }

@@ -9,6 +9,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import com.baidu.brpc.server.RpcServer;
 import io.four.raft.core.rpc.RaftRemoteServiceImpl;
 import io.four.raft.proto.Raft.*;
+import org.tinylog.Logger;
 
 import static io.four.raft.core.NodeState.*;
 import static io.four.raft.core.RemoteNodeClient.*;
@@ -45,7 +46,7 @@ public class RaftNode {
         this.stateMachine = stateMachine;
         this.config = config;
         this.clusterConfig = ClusterConfig.newBuilder().addAllServers(servers).build();
-        LOG.info(format(clusterConfig));
+        Logger.info(format(clusterConfig));
 
         this.scheduledExecutorService = new ScheduledThreadPoolExecutor(2);
         this.rpcServer = new RpcServer(localServer.getHost(), localServer.getPort());
@@ -74,7 +75,7 @@ public class RaftNode {
     void preVote() {
         lock.lock();
         try {
-            LOG.info("start preVote");
+            Logger.info("start preVote");
             if (!inCluster()) {
                 startElectionTask();
                 return;
@@ -87,7 +88,7 @@ public class RaftNode {
                         .orTimeout(config.getElectionTimeout(), MILLISECONDS)
                         .whenCompleteAsync((r, e) -> processPreVoteResp(r, e, term));
             }
-            LOG.info("end  preVote");
+            Logger.info("end  preVote");
             startElectionTask();
         } finally {
             lock.unlock();
@@ -98,18 +99,18 @@ public class RaftNode {
         lock.lock();
         try {
             if (e != null) {
-                LOG.error("Pre vote err" + e);
+                Logger.error("Pre vote err" + e);
                 return;
             }
-            LOG.info("pre vote resp {} {}", format(response), state);
+            Logger.info("pre vote resp {} {}", format(response), state);
             // if pass start vote to be candidate
             if (state != STATE_PRE_CANDIDATE || term != oldTerm) {
-                LOG.info("Rec old vote from {} old term {}", response.getServerId(), oldTerm);
+                Logger.info("Rec old vote from {} old term {}", response.getServerId(), oldTerm);
                 return;
             }
             if (response.getTerm() > term) {
-                LOG.info("已经有leader了");
-                toFollower();
+                Logger.info("已经有leader了");
+                toFollower(response.getTerm());
                 return;
             } else {
                 vote(response.getServerId(), cluster, response.getGranted());
@@ -124,7 +125,7 @@ public class RaftNode {
     }
 
     private void startVote() {
-        LOG.info("start vote");
+        Logger.info("start vote");
 
         lock.lock();
         term++;
@@ -136,21 +137,21 @@ public class RaftNode {
                     .whenCompleteAsync((r, t) -> processVoteResp(r, term));
         }
         lock.unlock();
-        LOG.info("vote over");
+        Logger.info("vote over");
 
     }
 
     private void processVoteResp(VoteResponse response, long oldTerm) {
         lock.lock();
-        LOG.info("Rec vote from {} {}", format(response), oldTerm);
+        Logger.info("Rec vote from {} {}", format(response), oldTerm);
         try {
             if (state != STATE_CANDIDATE || term != oldTerm) {
-                LOG.info("Rec old vote from {} {}", format(response), oldTerm);
+                Logger.info("Rec old vote from {} {}", format(response), oldTerm);
                 return;
             }
             if (response.getTerm() > term) {
-                LOG.info("已经有leader了");
-                toFollower();
+                Logger.info("已经有leader了");
+                toFollower(response.getTerm());
             } else {
                 vote(response.getServerId(), cluster, response.getGranted());
                 // 判断是否获胜出预选
@@ -170,23 +171,29 @@ public class RaftNode {
             if (electionScheduledFuture != null && !electionScheduledFuture.isDone()) {
                 electionScheduledFuture.cancel(true);
             }
-            LOG.info("become leader, start send heart beat to");
+            Logger.info("become leader, start send heart beat to");
             startHeartbeat();
         } catch (Exception e) {
-            LOG.info("to leader err ", e);
+            Logger.info("to leader err ", e);
         }
     }
 
-    public void toFollower() {
+    public void toFollower(long term) {
         state = STATE_FOLLOWER;
-        LOG.info("to follower ,and stop hear beat!");
+        this.term = term;
+        Logger.info("to follower ,and stop hear beat!");
         startElectionTask();
         if (heartbeatScheduledFuture != null && heartbeatScheduledFuture.isDone()) {
             heartbeatScheduledFuture.cancel(true);
         }
     }
+    public void toFollower(long term, int leaderId) {
+        this.voteFor = leaderId;
+        toFollower(term);
+    }
 
-    private void startHeartbeat() {
+
+        private void startHeartbeat() {
         if (heartbeatScheduledFuture != null && !heartbeatScheduledFuture.isDone()) {
             heartbeatScheduledFuture.cancel(true);
         }
@@ -268,5 +275,10 @@ public class RaftNode {
 
     public NodeState getState() {
         return state;
+    }
+
+    @Override
+    public String toString() {
+        return "RaftNode{localServer=" + localServer.getServerId() + ", state=" + state + ", term=" + term + ", voteFor=" + voteFor + '}';
     }
 }
