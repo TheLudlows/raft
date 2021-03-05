@@ -11,18 +11,19 @@ import io.four.raft.core.rpc.RaftRemoteServiceImpl;
 import io.four.raft.proto.Raft.*;
 import org.tinylog.Logger;
 
-import static io.four.raft.core.NodeState.*;
+import static io.four.raft.core.Node.NodeState.*;
 import static io.four.raft.core.RemoteNode.*;
 import static io.four.raft.core.Utils.*;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class RaftNode extends Node {
     private RaftConfig config;
-    private List<RemoteNode> cluster;
+    private List<RemoteNode> others;
     private ClusterConfig clusterConfig;
     private long commitIndex;
     private long applyIndex;
     private StateMachine stateMachine;
+    protected int leaderId;
 
     private Lock lock = new ReentrantLock();
 
@@ -34,9 +35,9 @@ public class RaftNode extends Node {
     private RpcServer rpcServer;
 
     public RaftNode(List<Server> servers, Server serverInfo, StateMachine stateMachine, RaftConfig config) {
-        this.cluster = new ArrayList<>();
+        this.others = new ArrayList<>();
         this.serverInfo = serverInfo;
-        servers.stream().filter(e -> e.getServerId() != serverInfo.getServerId()).forEach(server -> cluster.add(new RemoteNode(server)));
+        servers.stream().filter(e -> e.getServerId() != serverInfo.getServerId()).forEach(server -> others.add(new RemoteNode(server)));
         this.stateMachine = stateMachine;
         this.config = config;
         this.clusterConfig = ClusterConfig.newBuilder().addAllServers(servers).build();
@@ -76,8 +77,8 @@ public class RaftNode extends Node {
             }
             // pre vote
             this.state = STATE_PRE_CANDIDATE;
-
-            for (RemoteNode node : cluster) {
+            resetCluster(others);
+            for (RemoteNode node : others) {
                 CompletableFuture.supplyAsync(() -> node.preVote(buildVoteRest()))
                         .orTimeout(config.getElectionTimeout(), MILLISECONDS)
                         .whenCompleteAsync((r, e) -> processPreVoteResp(r, e, term));
@@ -103,10 +104,10 @@ public class RaftNode extends Node {
                 return;
             } else {
                 if (response.getGranted()) {
-                    vote(response.getServerId(), cluster, serverInfo.getServerId());
+                    vote(response.getServerId(), others, serverInfo.getServerId());
                 }
                 // 判断是否获胜出预选
-                if (countVote(cluster, serverInfo.getServerId()) > (clusterConfig.getServersList().size()) / 2) {
+                if (countVote(others, serverInfo.getServerId()) > (clusterConfig.getServersList().size()) / 2) {
                     startVote();
                 }
             }
@@ -117,12 +118,12 @@ public class RaftNode extends Node {
 
     private void startVote() {
         Logger.info("start vote");
-
         lock.lock();
         term++;
         state = STATE_CANDIDATE;
         voteFor = serverInfo.getServerId();
-        for (RemoteNode node : cluster) {
+        resetCluster(others);
+        for (RemoteNode node : others) {
             CompletableFuture.supplyAsync(() -> node.vote(buildVoteRest()))
                     .orTimeout(config.getElectionTimeout(), MILLISECONDS)
                     .whenCompleteAsync((r, t) -> processVoteResp(r, term));
@@ -145,10 +146,10 @@ public class RaftNode extends Node {
                 toFollower(response.getTerm());
             } else {
                 if (response.getGranted()) {
-                    vote(response.getServerId(), cluster, serverInfo.getServerId());
+                    vote(response.getServerId(), others, serverInfo.getServerId());
                 }
                 // 判断是否获胜出预选
-                if (countVote(cluster, serverInfo.getServerId()) > (clusterConfig.getServersList().size()) / 2) {
+                if (countVote(others, serverInfo.getServerId()) > (clusterConfig.getServersList().size()) / 2) {
                     toLeader();
                 }
             }
@@ -196,7 +197,7 @@ public class RaftNode extends Node {
 
     void heartBeatJob() {
         lock.lock();
-        for (RemoteNode node : cluster) {
+        for (RemoteNode node : others) {
             executorService.submit(() -> node.appendEntries(buildPingEntry()));
         }
         startHeartbeat();

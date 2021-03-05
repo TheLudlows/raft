@@ -1,6 +1,6 @@
 package io.four.raft.core.rpc;
 
-import io.four.raft.core.NodeState;
+import io.four.raft.core.Node;
 import io.four.raft.core.RaftNode;
 import io.four.raft.proto.Raft.*;
 import org.tinylog.Logger;
@@ -81,7 +81,7 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
                 // 无条件服从
                 raftNode.toFollower(request.getTerm(), request.getServerId());
             }
-            if (raftNode.getState() != NodeState.STATE_LEADER && raftNode.getVoteFor() == request.getServerId()) {
+            if (raftNode.getState() != Node.NodeState.STATE_LEADER && raftNode.getVoteFor() == request.getServerId()) {
                 if (request.getEntriesList().size() == 0) {
                     // ping
                     raftNode.startElectionTask();

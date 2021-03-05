@@ -3,11 +3,16 @@ package io.four.raft.core;
 import io.four.raft.proto.Raft;
 
 public class Node {
+   public enum NodeState {
+        STATE_FOLLOWER,
+        STATE_PRE_CANDIDATE,
+        STATE_CANDIDATE,
+        STATE_LEADER
+    }
     protected NodeState state = NodeState.STATE_FOLLOWER;
     protected long term;
     protected Raft.Server serverInfo; // server info
     protected int voteFor;
-    protected int leaderId;
 
     public Raft.Server getServerInfo() {
         return serverInfo;
@@ -33,3 +38,4 @@ public class Node {
         return state;
     }
 }
+

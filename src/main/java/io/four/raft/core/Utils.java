@@ -39,6 +39,12 @@ public class Utils {
                 .setServerId(Integer.parseInt(arr[2])).build();
     }
 
+    public static void resetCluster(List<RemoteNode> cluster) {
+        for(RemoteNode node : cluster) {
+            node.setVoteFor(0);
+        }
+    }
+
     public static void main(String[] args) {
         Logger.info("asdada");
     }

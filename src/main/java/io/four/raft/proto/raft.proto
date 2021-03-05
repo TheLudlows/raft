@@ -1,6 +1,6 @@
 syntax = "proto3";
-option java_package = "io.four.raft.proto";
-option java_outer_classname = "Raft";
+//option java_package = "io.four.raft.proto";
+//option java_outer_classname = "Raft";
 
 message Server{
   uint32 server_id = 1;
