@@ -37,12 +37,11 @@ public class RaftNode extends Node {
     public RaftNode(List<Server> servers, Server serverInfo, StateMachine stateMachine, RaftConfig config) {
         this.others = new ArrayList<>();
         this.serverInfo = serverInfo;
-        servers.stream().filter(e -> e.getServerId() != serverInfo.getServerId()).forEach(server -> others.add(new RemoteNode(server)));
+        servers.stream().filter(e -> e.getServerId() != serverInfo.getServerId())
+                .forEach(server -> others.add(new RemoteNode(server)));
         this.stateMachine = stateMachine;
         this.config = config;
         this.clusterConfig = ClusterConfig.newBuilder().addAllServers(servers).build();
-        Logger.info(format(clusterConfig));
-
         this.scheduledExecutorService = new ScheduledThreadPoolExecutor(2);
         this.rpcServer = new RpcServer(serverInfo.getHost(), serverInfo.getPort());
         this.executorService = Executors.newFixedThreadPool(4);
