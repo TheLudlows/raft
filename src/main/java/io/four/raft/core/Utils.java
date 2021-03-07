@@ -5,6 +5,8 @@ import com.google.protobuf.Message;
 import com.googlecode.protobuf.format.JsonFormat;
 import io.four.raft.proto.Raft;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -62,6 +64,14 @@ public class Utils {
         bytes[2] = (byte) ((v >>> 8) & 0xFF);
         bytes[3] = (byte) ((v >>> 0) & 0xFF);
         return bytes;
+    }
+
+    public static final File createFile(String name) throws IOException {
+        File file = new File(name);
+        if(!file.exists()){
+            file.createNewFile();
+        }
+        return file;
     }
 
     public static void main(String[] args) {

@@ -4,6 +4,8 @@ import java.io.RandomAccessFile;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
+import static io.four.raft.core.Utils.createFile;
+
 public class MetaData {
 
     private static final int first_off = 0;
@@ -14,7 +16,9 @@ public class MetaData {
     MappedByteBuffer buffer;
 
     public MetaData(String fileName) throws Exception {
-        buffer = new RandomAccessFile(fileName, "RW").getChannel().map(FileChannel.MapMode.READ_WRITE, 0, 16);
+        buffer = new RandomAccessFile(createFile(fileName), "rw").getChannel().map(FileChannel.MapMode.READ_WRITE, 0, 16);
+        first_index = 1;
+        buffer.putLong(first_off, first_index);
     }
 
     public long getFirstIndex() {

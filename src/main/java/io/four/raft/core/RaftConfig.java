@@ -11,10 +11,11 @@ public class RaftConfig {
 
     private int heartbeatTime = 500;
 
-    private String dir;
+    private String dir = "./raft";
 
     /**
      * 选举rpc超时
      */
     private int electionTimeout = 5000;
+
 }
