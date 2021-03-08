@@ -44,4 +44,12 @@ public class MetaData {
         this.commit_index = index;
         buffer.putLong(commit_off, index);
     }
+
+    @Override
+    public String toString() {
+        return "MetaData{" +
+                "first_index=" + first_index +
+                ", commit_index=" + commit_index +
+                '}';
+    }
 }

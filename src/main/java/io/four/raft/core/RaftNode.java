@@ -7,6 +7,8 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.baidu.brpc.server.RpcServer;
+import com.google.protobuf.ByteString;
+import io.four.raft.core.log.RaftLog;
 import io.four.raft.core.rpc.RaftRemoteServiceImpl;
 import io.four.raft.proto.Raft.*;
 import org.tinylog.Logger;
@@ -20,8 +22,6 @@ public class RaftNode extends Node {
     private RaftConfig config;
     private List<RemoteNode> others;
     private ClusterConfig clusterConfig;
-    private long commitIndex;
-    private long applyIndex;
     private StateMachine stateMachine;
     protected int leaderId;
 
@@ -33,18 +33,24 @@ public class RaftNode extends Node {
     private ScheduledExecutorService scheduledExecutorService;
     private ExecutorService executorService;
     private RpcServer rpcServer;
+    protected RaftLog raftLog;
 
     public RaftNode(List<Server> servers, Server serverInfo, StateMachine stateMachine, RaftConfig config) {
-        this.others = new ArrayList<>();
-        this.serverInfo = serverInfo;
-        servers.stream().filter(e -> e.getServerId() != serverInfo.getServerId())
-                .forEach(server -> others.add(new RemoteNode(server)));
-        this.stateMachine = stateMachine;
-        this.config = config;
-        this.clusterConfig = ClusterConfig.newBuilder().addAllServers(servers).build();
-        this.scheduledExecutorService = new ScheduledThreadPoolExecutor(2);
-        this.rpcServer = new RpcServer(serverInfo.getHost(), serverInfo.getPort());
-        this.executorService = Executors.newFixedThreadPool(4);
+        try {
+            this.others = new ArrayList<>();
+            this.serverInfo = serverInfo;
+            servers.stream().filter(e -> e.getServerId() != serverInfo.getServerId())
+                    .forEach(server -> others.add(new RemoteNode(server)));
+            this.stateMachine = stateMachine;
+            this.config = config;
+            this.clusterConfig = ClusterConfig.newBuilder().addAllServers(servers).build();
+            this.scheduledExecutorService = new ScheduledThreadPoolExecutor(2);
+            this.rpcServer = new RpcServer(serverInfo.getHost(), serverInfo.getPort());
+            this.executorService = Executors.newFixedThreadPool(4);
+            this.raftLog = new RaftLog(config.getDir() + serverInfo.getServerId(), config.getMaxFileSize());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public RaftNode(String servers, String serverInfo, StateMachine stateMachine) {
@@ -212,8 +218,8 @@ public class RaftNode extends Node {
     VoteRequest buildVoteRest() {
         return VoteRequest.newBuilder().setServerId(serverInfo.getServerId())
                 .setTerm(term)
-                .setLastLogTerm(/**log.get**/term)
-                .setLastLogIndex(/**log.get_last_index**/0)
+                .setLastLogTerm(raftLog.lastLogTerm())
+                .setLastLogIndex(raftLog.lastLogTerm())
                 .build();
     }
 
@@ -248,5 +254,31 @@ public class RaftNode extends Node {
     @Override
     public String toString() {
         return "RaftNode{localServer=" + serverInfo.getServerId() + ", state=" + state + ", term=" + term + ", voteFor=" + voteFor + '}';
+    }
+
+    public boolean append(byte[] data) {
+        try {
+            if( leaderId != serverInfo.getServerId()) {
+                Logger.info("Server {} is not leader", format(serverInfo));
+                return false;
+            }
+            LogEntry entry = raftLog.appendLog(LogEntry.newBuilder().setTerm(term)
+                    .setData(ByteString.copyFrom(data))
+                    .setType(0));
+
+            for(RemoteNode remoteNode : others) {
+                //CompletableFuture.supplyAsync(remoteNode.appendEntries())
+            }
+
+        } catch (Exception e) {
+
+        } finally {
+
+        }
+        return false;
+    }
+
+    public RaftLog getRaftLog() {
+        return raftLog;
     }
 }

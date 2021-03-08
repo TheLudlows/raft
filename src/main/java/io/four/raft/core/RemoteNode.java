@@ -16,7 +16,6 @@ import static io.four.raft.core.Utils.format;
 public class RemoteNode extends Node {
     private long nextIndex;
     private long matchIndex;
-    private boolean catchUp;
     private RpcClient rpcClient;
     private RaftRemoteService remoteService;
 
@@ -26,8 +25,6 @@ public class RemoteNode extends Node {
                 server.getHost(),
                 server.getPort()));
         remoteService = BrpcProxy.getProxy(rpcClient, RaftRemoteService.class);
-        catchUp = false;
-
     }
 
     public VoteResponse preVote(VoteRequest voteRequest) {

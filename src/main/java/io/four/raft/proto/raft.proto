@@ -26,23 +26,23 @@ message ClusterConfig {
 }
 
 message AppendEntriesRequest {
-   uint32 server_id = 1; // 领导人的Id
-   uint64 term = 2; // 领导人的任期号
-   uint64 prev_log_index = 3; // 新的日志条目紧随之前的索引值
-   uint64 prev_log_term = 4; // prev_log_index条目的任期号
-   uint64 commit_index = 5; // 领导人已经提交的日志的索引值
+  uint32 server_id = 1; // 领导人的Id
+  uint64 term = 2; // 领导人的任期号
+  uint64 prev_log_index = 3; // 新的日志条目紧随之前的索引值
+  uint64 prev_log_term = 4; // prev_log_index条目的任期号
+  uint64 commit_index = 5; // 领导人已经提交的日志的索引值
   repeated LogEntry entries = 6; // 准备存储的日志条目（表示心跳时为空）
 };
 
 message AppendEntriesResponse {
-   uint32 res_code = 1; // 跟随者包含了匹配上 prevLogIndex 和 prevLogTerm 的日志时为真
-   uint64 term = 2; // 当前的任期号，用于领导人去更新自己
-   uint64 last_log_index = 3;
+  uint32 res_code = 1; // 跟随者包含了匹配上 prevLogIndex 和 prevLogTerm 的日志时为真
+  uint64 term = 2; // 当前的任期号，用于领导人去更新自己
+  uint64 last_log_index = 3;
 };
 
 message LogEntry {
-   uint64 term = 1;
-   uint64 index = 2;
-   uint32 type = 3;
-   bytes data = 4;
+  uint64 term = 1;
+  uint64 index = 2;
+  uint32 type = 3;//0 append log
+  bytes data = 4;
 };

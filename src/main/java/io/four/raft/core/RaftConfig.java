@@ -11,11 +11,13 @@ public class RaftConfig {
 
     private int heartbeatTime = 500;
 
-    private String dir = "./raft";
+    private String dir = "/tmp/raft/";
 
     /**
      * 选举rpc超时
      */
     private int electionTimeout = 5000;
+
+    private long maxFileSize = 1024*1024;
 
 }

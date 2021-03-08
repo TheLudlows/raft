@@ -15,7 +15,7 @@ import static io.four.raft.core.Utils.format;
 
 public class SegmentLog {
     protected long startIndex;
-    List<LogEntry> logs;
+    protected List<LogEntry> logs;
     List<Long> offs;
     RandomAccessFile file;
     String fileName;
@@ -29,12 +29,19 @@ public class SegmentLog {
         this.loadData();
     }
 
+    public LogEntry logEntry(Long index) {
+        if(index > startIndex + logs.size()) {
+            return null;
+        }
+        return logs.get((int) (index - startIndex));
+    }
+
     private void loadData() throws IOException {
         long fileSize = file.length();
         long start = 0;
         while (start < fileSize) {
             LogEntry entry = readEntry();
-            Logger.info("load data {}",format(entry));
+            Logger.info("load data {}", format(entry));
             logs.add(entry);
             offs.add(start);
             start = file.getFilePointer();
@@ -59,10 +66,5 @@ public class SegmentLog {
         return file.length();
     }
 
-    public static void main(String[] args) throws Exception {
-        RaftLog raftLog = new RaftLog("E:/data",10000);
-        LogEntry entry = LogEntry.newBuilder().setIndex(1)
-                .setType(1).setTerm(1).build();
-        raftLog.appendLog(entry);
-    }
+
 }

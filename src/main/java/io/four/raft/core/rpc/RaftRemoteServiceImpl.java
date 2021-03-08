@@ -2,6 +2,7 @@ package io.four.raft.core.rpc;
 
 import io.four.raft.core.Node;
 import io.four.raft.core.RaftNode;
+import io.four.raft.core.log.RaftLog;
 import io.four.raft.proto.Raft.*;
 import org.tinylog.Logger;
 
@@ -26,7 +27,8 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
         try {
             Logger.info("preVote server {} for:{}", server.getServerId(), format(request));
 
-            if (raftNode.getTerm() <= request.getTerm() && raftNode.inCluster(request.getServerId())) {
+            if (raftNode.getTerm() <= request.getTerm() && raftNode.inCluster(request.getServerId())
+                    && checkLog(request.getLastLogTerm(), request.getLastLogIndex())) {
                 builder.setGranted(true);
                 builder.setTerm(raftNode.getTerm());
                 Logger.info("preVote server {} pre vote for {}", server.getServerId(), format(request));
@@ -53,16 +55,18 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
                 return builder.build();
             }
             if (request.getTerm() > raftNode.getTerm() || raftNode.getVoteFor() == 0) {
-                raftNode.toFollower(request.getTerm());
-                builder.setGranted(true);
-                raftNode.setTerm(request.getTerm());
-                raftNode.setVoteFor(request.getServerId());
+                if(checkLog(request.getLastLogTerm(), request.getLastLogIndex())) {
+                    raftNode.toFollower(request.getTerm());
+                    builder.setGranted(true);
+                    raftNode.setTerm(request.getTerm());
+                    raftNode.setVoteFor(request.getServerId());
 
-                VoteResponse response = builder.setTerm(raftNode.getTerm())
-                        .setServerId(raftNode.getServerInfo().getServerId())
-                        .build();
-                Logger.info("vote server {} vote for {}", raftNode.toString(), format(request));
-                return response;
+                    VoteResponse response = builder.setTerm(raftNode.getTerm())
+                            .setServerId(raftNode.getServerInfo().getServerId())
+                            .build();
+                    Logger.info("vote server {} vote for {}", raftNode.toString(), format(request));
+                    return response;
+                }
             }
         } catch (Exception e) {
             Logger.error("RaftRemoteServiceImpl vote err", e);
@@ -72,12 +76,26 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
         return builder.build();
     }
 
+    private boolean checkLog(long term, long index) {
+        RaftLog raftLog = raftNode.getRaftLog();
+        long lastTerm = raftLog.lastLogTerm();
+        long lastIndex = raftLog.lastLogIndex();
+
+        if (lastTerm > term) {
+            return false;
+        } else if (lastTerm < term) {
+            return true;
+        } else {
+            return lastIndex <= index;
+        }
+    }
+
     @Override
     public AppendEntriesResponse appendEntries(AppendEntriesRequest request) {
         raftNode.getLock().lock();
         try {
             Logger.info("appendEntries from {},{}", format(request), raftNode.toString());
-            if(request.getTerm() > raftNode.getTerm()) {
+            if (request.getTerm() > raftNode.getTerm()) {
                 // 无条件服从
                 raftNode.toFollower(request.getTerm(), request.getServerId());
             }

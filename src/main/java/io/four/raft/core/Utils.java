@@ -81,5 +81,7 @@ public class Utils {
         System.out.println(toInt(toByte(n1)));
         System.out.println(toInt(toByte(n2)));
 
+        System.out.println(true || false && true);
+
     }
 }
