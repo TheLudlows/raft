@@ -102,6 +102,7 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
             if (raftNode.getState() != Node.NodeState.STATE_LEADER && raftNode.getVoteFor() == request.getServerId()) {
                 if (request.getEntriesList().size() == 0) {
                     // ping
+                    raftNode.
                     raftNode.startElectionTask();
                 } else {
                     // log

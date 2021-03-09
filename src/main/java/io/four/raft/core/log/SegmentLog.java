@@ -66,5 +66,12 @@ public class SegmentLog {
         return file.length();
     }
 
+    public static void main(String[] args) throws Exception {
+        RandomAccessFile randomAccessFile = new RandomAccessFile(new File("/tmp/raft/2/raft.meta"),"rw");
+        randomAccessFile.write(100);
+        randomAccessFile.setLength(1);
+        System.out.println(randomAccessFile.getFilePointer());
+    }
+
 
 }

@@ -4,7 +4,6 @@ import com.baidu.brpc.client.BrpcProxy;
 import com.baidu.brpc.client.RpcClient;
 import com.baidu.brpc.client.channel.Endpoint;
 import io.four.raft.core.rpc.RaftRemoteService;
-import lombok.Data;
 import io.four.raft.proto.Raft.*;
 import org.tinylog.Logger;
 
@@ -12,8 +11,7 @@ import java.util.List;
 
 import static io.four.raft.core.Utils.format;
 
-@Data
-public class RemoteNode extends Node {
+public class RemoteNode extends Node{
     private long nextIndex;
     private long matchIndex;
     private RpcClient rpcClient;
@@ -21,6 +19,7 @@ public class RemoteNode extends Node {
 
     public RemoteNode(Server server) {
         this.serverInfo = server;
+        this.nextIndex = 1;
         this.rpcClient = new RpcClient(new Endpoint(
                 server.getHost(),
                 server.getPort()));
@@ -32,7 +31,7 @@ public class RemoteNode extends Node {
             this.voteFor = 0;
             return remoteService.preVote(voteRequest);
         }catch (Exception e) {
-            Logger.warn("RemoteNodeClient preVote err {}", voteRequest);
+            Logger.warn("RemoteNodeClient pre Vote err {}", format(serverInfo));
             return buildwarn(voteRequest.getServerId());
         }
     }
@@ -82,4 +81,33 @@ public class RemoteNode extends Node {
                 .build();
     }
 
+    public long getNextIndex() {
+        return nextIndex;
+    }
+
+    public RemoteNode setNextIndex(long nextIndex) {
+        this.nextIndex = nextIndex;
+        return this;
+    }
+
+    public long getMatchIndex() {
+        return matchIndex;
+    }
+
+    public RemoteNode setMatchIndex(long matchIndex) {
+        this.matchIndex = matchIndex;
+        return this;
+    }
+
+    @Override
+    public String toString() {
+        return "RemoteNode{" +
+                "state=" + state +
+                ", term=" + term +
+                ", serverInfo=" + serverInfo +
+                ", voteFor=" + voteFor +
+                ", nextIndex=" + nextIndex +
+                ", matchIndex=" + matchIndex +
+                '}';
+    }
 }

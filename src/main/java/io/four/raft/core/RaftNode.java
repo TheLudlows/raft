@@ -1,6 +1,7 @@
 package io.four.raft.core;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
@@ -25,13 +26,12 @@ public class RaftNode extends Node {
     private StateMachine stateMachine;
     protected int leaderId;
 
-    private Lock lock = new ReentrantLock();
+    private final Lock lock = new ReentrantLock();
 
     private ScheduledFuture electionScheduledFuture;
     private ScheduledFuture heartbeatScheduledFuture;
 
     private ScheduledExecutorService scheduledExecutorService;
-    private ExecutorService executorService;
     private RpcServer rpcServer;
     protected RaftLog raftLog;
 
@@ -46,7 +46,6 @@ public class RaftNode extends Node {
             this.clusterConfig = ClusterConfig.newBuilder().addAllServers(servers).build();
             this.scheduledExecutorService = new ScheduledThreadPoolExecutor(2);
             this.rpcServer = new RpcServer(serverInfo.getHost(), serverInfo.getPort());
-            this.executorService = Executors.newFixedThreadPool(4);
             this.raftLog = new RaftLog(config.getDir() + serverInfo.getServerId(), config.getMaxFileSize());
         } catch (Exception e) {
             e.printStackTrace();
@@ -95,7 +94,7 @@ public class RaftNode extends Node {
         }
     }
 
-    private void processPreVoteResp(VoteResponse response, Throwable e, long oldTerm) {
+    private void processPreVoteResp(VoteResponse response, Throwable e_, long oldTerm) {
         lock.lock();
         try {
             Logger.info("pre vote resp {} {}", format(response), state);
@@ -170,7 +169,7 @@ public class RaftNode extends Node {
             if (electionScheduledFuture != null && !electionScheduledFuture.isDone()) {
                 electionScheduledFuture.cancel(true);
             }
-            Logger.info("Become leader{}", this.toString());
+            Logger.info("Become leader {}", this.toString());
             startHeartbeat();
         } catch (Exception e) {
             Logger.info("to leader err ", e);
@@ -203,16 +202,10 @@ public class RaftNode extends Node {
     void heartBeatJob() {
         lock.lock();
         for (RemoteNode node : others) {
-            executorService.submit(() -> node.appendEntries(buildPingEntry()));
+            CompletableFuture.supplyAsync(() -> appendLog(node));
         }
         startHeartbeat();
         lock.unlock();
-    }
-
-    private AppendEntriesRequest buildPingEntry() {
-        return AppendEntriesRequest.newBuilder().setTerm(term)
-                .setServerId(serverInfo.getServerId())
-                .build();
     }
 
     VoteRequest buildVoteRest() {
@@ -221,17 +214,6 @@ public class RaftNode extends Node {
                 .setLastLogTerm(raftLog.lastLogTerm())
                 .setLastLogIndex(raftLog.lastLogTerm())
                 .build();
-    }
-
-    void appendLog() {
-        // rpc
-        // check behind ? catch up
-        // commit log
-    }
-
-    // client
-    public boolean clientApply() {
-        return true;
     }
 
     private boolean inCluster() {
@@ -257,26 +239,111 @@ public class RaftNode extends Node {
     }
 
     public boolean append(byte[] data) {
+        boolean res = false;
         try {
-            if( leaderId != serverInfo.getServerId()) {
+            lock.lock();
+            if (leaderId != serverInfo.getServerId()) {
                 Logger.info("Server {} is not leader", format(serverInfo));
                 return false;
             }
-            LogEntry entry = raftLog.appendLog(LogEntry.newBuilder().setTerm(term)
+            raftLog.appendLog(LogEntry.newBuilder().setTerm(term)
                     .setData(ByteString.copyFrom(data))
                     .setType(0));
+            List<CompletableFuture<Boolean>> list = new ArrayList<>();
+            for (RemoteNode remoteNode : others) {
+                list.add(CompletableFuture.supplyAsync(() -> appendLog(remoteNode))
+                        .orTimeout(config.getAppendTimeOut(), MILLISECONDS)
+                        .exceptionally(t -> false));
+            }
+            for (CompletableFuture<Boolean> future : list) {
+                res = res || future.get();
+            }
+        } catch (Exception e) {
+            Logger.error("append err", e);
+        } finally {
+            lock.unlock();
+        }
+        return res;
+    }
 
-            for(RemoteNode remoteNode : others) {
-                //CompletableFuture.supplyAsync(remoteNode.appendEntries())
+    boolean appendLog(RemoteNode node) {
+        try {
+            lock.lock();
+            long from = node.getNextIndex();
+            int n = config.getMaxAppendLogs();
+            List<LogEntry> logEntries = raftLog.packEntries(from, n);
+            AppendEntriesRequest.Builder builder = AppendEntriesRequest.newBuilder();
+            for (LogEntry entry : logEntries) {
+                builder.addEntries(entry);
             }
 
-        } catch (Exception e) {
+            long lastTerm;
+            long lastIndex = node.getNextIndex() - 1;
+            if (lastIndex == 0) {
+                lastTerm = 0;
+            } else {
+                lastTerm = raftLog.logEntry(lastIndex).getTerm();
+            }
+            AppendEntriesRequest request = builder.setTerm(term)
+                    .setCommitIndex(raftLog.commitIndex())
+                    .setPrevLogIndex(lastIndex)
+                    .setServerId(serverInfo.getServerId())
+                    .setPrevLogTerm(lastTerm)
+                    .build();
+            Logger.info("Append log {} to node {}", format(request), node.toString());
 
+            AppendEntriesResponse response = node.appendEntries(request);
+            if (response.getTerm() > term) {
+                toFollower(response.getTerm());
+                return false;
+            }
+            node.setNextIndex(response.getLastLogIndex() + 1);
+            if (response.getResCode() == 0) { // suc
+                node.setMatchIndex(from + logEntries.size());
+                return tryCommitLog();// 尝试去提交(应用状态机)
+            }
         } finally {
-
+            lock.unlock();
         }
         return false;
     }
+
+    // leader commit
+    private boolean tryCommitLog() {
+        try {
+            int clusterSize = clusterConfig.getServersList().size();
+            long[] appendIndexArr = new long[clusterSize];
+            appendIndexArr[0] = raftLog.lastLogIndex();
+            int i = 1;
+            for (RemoteNode node : others) {
+                appendIndexArr[i++] = node.getMatchIndex();
+            }
+            Arrays.sort(appendIndexArr);
+            long appendIndex = appendIndexArr[clusterSize / 2];
+            if (appendIndex > raftLog.lastLogIndex() || appendIndex < raftLog.lastLogIndex()) {
+                Logger.warn("appendIndex > < raftLog.lastLogIndex {} {} {}", appendIndex, raftLog.lastLogIndex(), others);
+                return false;
+            }
+            Long start = raftLog.commitIndex();
+            for (; start <= raftLog.lastLogIndex(); start++) {
+                stateMachine.apply(raftLog.logEntry(start).getData().toByteArray());
+            }
+            raftLog.commitIndex(start);
+            return true;
+        } catch (Exception e) {
+            Logger.warn("append log err", e);
+        } finally {
+            lock.unlock();
+        }
+        return false;
+    }
+    // follower commit
+    public void tryCommitLog(AppendEntriesRequest request) {
+        long leaderCommit = request.getCommitIndex();
+        long commitIndex = raftLog.commitIndex();
+        long lastIndex = raftLog.lastLogIndex();
+    }
+
 
     public RaftLog getRaftLog() {
         return raftLog;

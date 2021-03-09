@@ -1,9 +1,11 @@
 package io.four.raft.core.log;
 
-import io.four.raft.proto.Raft;
+import io.four.raft.proto.Raft.*;
 import org.tinylog.Logger;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -44,7 +46,7 @@ public class RaftLog {
         }
         if (logMap.size() > 0) {
             SegmentLog log = logMap.lastEntry().getValue();
-            Raft.LogEntry last = log.logs.get(log.logs.size() - 1);
+            LogEntry last = log.logs.get(log.logs.size() - 1);
             lastLogTerm = last.getTerm();
             lastLogIndex = last.getIndex();
         }
@@ -52,8 +54,8 @@ public class RaftLog {
         Logger.info("raft log at {}, meta {}, log size {}", dir, metaData, logMap.size());
     }
 
-    public Raft.LogEntry appendLog(Raft.LogEntry.Builder builder) throws Exception {
-        Raft.LogEntry entry = builder.setIndex(++lastLogIndex).build();
+    public LogEntry appendLog(LogEntry.Builder builder) throws Exception {
+        LogEntry entry = builder.setIndex(++lastLogIndex).build();
         lastLogTerm = entry.getTerm();
         Map.Entry<Long, SegmentLog> mapEntry = logMap.lastEntry();
         SegmentLog segmentLog;
@@ -66,6 +68,28 @@ public class RaftLog {
         segmentLog.appendLong(entry);
         return entry;
     }
+
+    public List<LogEntry> packEntries(long from, int n) {
+        long max = from + n;
+        List<LogEntry> list = new ArrayList<>();
+        while (from < lastLogIndex && from < max) {
+            LogEntry logEntry = this.logEntry(from++);
+            if (logEntry != null) {
+                list.add(logEntry);
+            }
+        }
+        return list;
+    }
+
+    public LogEntry logEntry(long index) {
+        Map.Entry<Long, SegmentLog> entry = logMap.floorEntry(index);
+        if (entry != null) {
+            SegmentLog seg = entry.getValue();
+            return seg.logEntry(index);
+        }
+        return null;
+    }
+
 
     private final String dataFileName(Object index) {
         return dir + File.separator + index + DATA_SUFFIX;
@@ -83,11 +107,19 @@ public class RaftLog {
         return lastLogTerm;
     }
 
+    public long commitIndex() {
+       return metaData.getCommitIndex();
+    }
+
+    public void commitIndex(long index) {
+        metaData.setCommitIndex(index);
+    }
+
     public static void main(String[] args) throws Exception {
         RaftLog raftLog = new RaftLog("/tmp/data", 10000);
         System.out.println(raftLog.metaData);
         for (int i = 1; i < 10000; i++) {
-            raftLog.appendLog( Raft.LogEntry.newBuilder()
+            raftLog.appendLog(LogEntry.newBuilder()
                     .setType(0).setTerm(1));
         }
     }

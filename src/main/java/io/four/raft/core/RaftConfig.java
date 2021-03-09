@@ -20,4 +20,8 @@ public class RaftConfig {
 
     private long maxFileSize = 1024*1024;
 
+    private int maxAppendLogs = Integer.MAX_VALUE;
+
+    private int appendTimeOut = 5000;
+
 }
