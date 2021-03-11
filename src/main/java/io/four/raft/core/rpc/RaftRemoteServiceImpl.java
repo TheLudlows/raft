@@ -25,13 +25,13 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
                 .setGranted(false)
                 .setTerm(raftNode.getTerm());
         try {
-            Logger.info("preVote server {} for:{}", server.getServerId(), format(request));
+            Logger.info("Server {} rec pre vote for {}", server.getServerId(), format(request));
 
             if (raftNode.getTerm() <= request.getTerm() && raftNode.inCluster(request.getServerId())
                     && checkLog(request.getLastLogTerm(), request.getLastLogIndex())) {
                 builder.setGranted(true);
                 builder.setTerm(raftNode.getTerm());
-                Logger.info("preVote server {} pre vote for {}", server.getServerId(), format(request));
+                Logger.info("Server {} pre vote for {}", server.getServerId(), format(request));
             }
             return builder.build();
 
@@ -55,7 +55,7 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
                 return builder.build();
             }
             if (request.getTerm() > raftNode.getTerm() || raftNode.getVoteFor() == 0) {
-                if(checkLog(request.getLastLogTerm(), request.getLastLogIndex())) {
+                if (checkLog(request.getLastLogTerm(), request.getLastLogIndex())) {
                     raftNode.toFollower(request.getTerm());
                     builder.setGranted(true);
                     raftNode.setTerm(request.getTerm());
@@ -102,15 +102,17 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
             if (raftNode.getState() != Node.NodeState.STATE_LEADER && raftNode.getVoteFor() == request.getServerId()) {
                 if (request.getEntriesList().size() == 0) {
                     // ping
-                    raftNode.
-                    raftNode.startElectionTask();
+                    raftNode.tryCommitLog(request);
                 } else {
                     // log
                 }
+                raftNode.startElectionTask();
             }
-            return AppendEntriesResponse.newBuilder().build();
+        } catch (Exception e) {
+            Logger.error("Append entry err", e);
         } finally {
             raftNode.getLock().unlock();
         }
+        return AppendEntriesResponse.newBuilder().build();
     }
 }

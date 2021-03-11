@@ -51,7 +51,7 @@ public class RaftLog {
             lastLogIndex = last.getIndex();
         }
 
-        Logger.info("raft log at {}, meta {}, log size {}", dir, metaData, logMap.size());
+        Logger.info("Raft log at [{}], meta {}, Seg size {}", dir, metaData, logMap.size());
     }
 
     public LogEntry appendLog(LogEntry.Builder builder) throws Exception {
@@ -124,5 +124,11 @@ public class RaftLog {
         }
     }
 
-
+    @Override
+    public String toString() {
+        return "RaftLog{" + metaData +
+                ", lastLogIndex=" + lastLogIndex +
+                ", lastLogTerm=" + lastLogTerm +
+                '}';
+    }
 }

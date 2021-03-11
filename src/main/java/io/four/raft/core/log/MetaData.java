@@ -47,9 +47,6 @@ public class MetaData {
 
     @Override
     public String toString() {
-        return "MetaData{" +
-                "first_index=" + first_index +
-                ", commit_index=" + commit_index +
-                '}';
+        return "{first_index=" + first_index + ", commit_index=" + commit_index +'}';
     }
 }
