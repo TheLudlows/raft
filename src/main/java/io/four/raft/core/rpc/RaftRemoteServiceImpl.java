@@ -100,13 +100,13 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
                 raftNode.toFollower(request.getTerm(), request.getServerId());
             }
             if (raftNode.getState() != Node.NodeState.STATE_LEADER && raftNode.getVoteFor() == request.getServerId()) {
+                raftNode.startElectionTask();
                 if (request.getEntriesList().size() == 0) {
                     // ping
                     raftNode.tryCommitLog(request);
                 } else {
                     // log
                 }
-                raftNode.startElectionTask();
             }
         } catch (Exception e) {
             Logger.error("Append entry err", e);
