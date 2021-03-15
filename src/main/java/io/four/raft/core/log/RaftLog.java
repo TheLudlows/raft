@@ -54,8 +54,7 @@ public class RaftLog {
         Logger.info("Raft log at [{}], meta {}, Seg size {}", dir, metaData, logMap.size());
     }
 
-    public LogEntry appendLog(LogEntry.Builder builder) throws Exception {
-        LogEntry entry = builder.setIndex(++lastLogIndex).build();
+    public LogEntry appendLog(LogEntry entry) throws Exception {
         lastLogTerm = entry.getTerm();
         Map.Entry<Long, SegmentLog> mapEntry = logMap.lastEntry();
         SegmentLog segmentLog;
@@ -69,10 +68,16 @@ public class RaftLog {
         return entry;
     }
 
+    public long incAndGet() {
+        ++lastLogIndex;
+        return lastLogIndex;
+    }
+
+
     public List<LogEntry> packEntries(long from, int n) {
         long max = from + n;
         List<LogEntry> list = new ArrayList<>();
-        while (from < lastLogIndex && from < max) {
+        while (from <= lastLogIndex && from < max) {
             LogEntry logEntry = this.logEntry(from++);
             if (logEntry != null) {
                 list.add(logEntry);
@@ -88,6 +93,28 @@ public class RaftLog {
             return seg.logEntry(index);
         }
         return null;
+    }
+
+    public long logTerm(long index) {
+        LogEntry entry = logEntry(index);
+        if (entry == null) {
+            return 0;
+        } else {
+            return entry.getTerm();
+        }
+    }
+
+    public void rmLogLast() {
+        Map.Entry<Long, SegmentLog> entry = logMap.lastEntry();
+        if (entry != null) {
+            SegmentLog seg = entry.getValue();
+            if (seg.size() == 1) {
+                logMap.remove(entry.getKey());
+            } else {
+                seg.rmLast();
+            }
+            lastLogIndex--;
+        }
     }
 
 
@@ -108,7 +135,7 @@ public class RaftLog {
     }
 
     public long commitIndex() {
-       return metaData.getCommitIndex();
+        return metaData.getCommitIndex();
     }
 
     public void commitIndex(long index) {
@@ -120,7 +147,7 @@ public class RaftLog {
         System.out.println(raftLog.metaData);
         for (int i = 1; i < 10000; i++) {
             raftLog.appendLog(LogEntry.newBuilder()
-                    .setType(0).setTerm(1));
+                    .setType(0).setTerm(1).build());
         }
     }
 

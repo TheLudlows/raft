@@ -9,8 +9,6 @@ import org.tinylog.Logger;
 
 import java.util.List;
 
-import static io.four.raft.core.Utils.format;
-
 public class RemoteNode extends Node {
     private long nextIndex;
     private long matchIndex;
@@ -48,7 +46,7 @@ public class RemoteNode extends Node {
         try {
             return remoteService.appendEntries(request);
         } catch (Exception e) {
-            Logger.warn("RemoteNodeClient appendEntries err {} to {}", format(request), format(serverInfo));
+            //Logger.warn("RemoteNodeClient appendEntries err {} to {}", format(request), format(serverInfo));
             return buildErrApp();
         }
     }
@@ -99,6 +97,6 @@ public class RemoteNode extends Node {
 
     @Override
     public String toString() {
-        return "RemoteNode{state=" + state + ", term=" + term + ", serverInfo=" + serverInfo.getServerId() + ", nextIndex=" + nextIndex + ", matchIndex=" + matchIndex + '}';
+        return "Node{term=" + term + ", server=" + serverInfo.getServerId() + ", nextIndex=" + nextIndex + ", matchIndex=" + matchIndex + '}';
     }
 }

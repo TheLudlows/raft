@@ -8,10 +8,10 @@ public class node {
         String local = args[1];
         RaftNode raftNode = new RaftNode(servers, local, data -> System.out.println("apply data"));
         raftNode.init();
-
+        Thread.sleep(5000);
         int n = 1;
-        while (true) {
-            Thread.sleep(5000);
+        while (n < 10) {
+            Thread.sleep(4000);
             if (raftNode.leader()) {
                 raftNode.append((n + "").getBytes());
             }

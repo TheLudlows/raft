@@ -1,5 +1,6 @@
 package io.four.raft.core.log;
 
+import com.baidu.brpc.utils.GsonUtils;
 import io.four.raft.proto.Raft.*;
 import org.tinylog.Logger;
 
@@ -30,7 +31,8 @@ public class SegmentLog {
     }
 
     public LogEntry logEntry(Long index) {
-        if(index > startIndex + logs.size()) {
+        //System.out.println(index + "-" + startIndex + "-" + logs.size());
+        if(index >= startIndex + logs.size()) {
             return null;
         }
         return logs.get((int) (index - startIndex));
@@ -64,6 +66,15 @@ public class SegmentLog {
 
     public long fileSize() throws IOException {
         return file.length();
+    }
+
+    public void rmLast() {
+        logs.remove(logs.size()-1);
+        offs.remove(offs.size()-1);
+    }
+
+    public int size() {
+        return logs.size();
     }
 
     public static void main(String[] args) throws Exception {
