@@ -10,11 +10,12 @@ public class node {
         Thread.sleep(5000);
         int n = 1;
         while (n < 10) {
-            Thread.sleep(4000);
+            Thread.sleep(2000);
             if (raftNode.leader()) {
                 raftNode.append((n + "").getBytes());
+                n++;
             }
-            n++;
         }
+        Thread.sleep(2000);
     }
 }

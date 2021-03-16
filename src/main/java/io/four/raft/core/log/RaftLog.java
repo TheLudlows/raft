@@ -13,9 +13,9 @@ public class RaftLog {
 
     static final String META = "raft.meta";
     static final String DATA_SUFFIX = ".log";
-    String dir;
-    MetaData metaData;
-    TreeMap<Long, SegmentLog> logMap;
+    private String dir;
+    protected MetaData metaData;
+    private TreeMap<Long, SegmentLog> logMap;
     long maxSize;
     long lastLogIndex;
     long lastLogTerm;
@@ -140,6 +140,10 @@ public class RaftLog {
 
     public void commitIndex(long index) {
         metaData.setCommitIndex(index);
+    }
+
+    public MetaData getMETA() {
+        return metaData;
     }
 
     public static void main(String[] args) throws Exception {

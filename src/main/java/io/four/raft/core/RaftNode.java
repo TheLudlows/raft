@@ -43,6 +43,7 @@ public class RaftNode extends Node {
             this.rpcServer = new RpcServer(serverInfo.getHost(), serverInfo.getPort());
             this.raftLog = new RaftLog(config.getDir() + serverInfo.getServerId(), config.getMaxFileSize());
 
+            super.term = raftLog.getMETA().getTerm();
             this.rpcServer.registerService(stateMachine);
             this.rpcServer.registerService(new RaftRemoteServiceImpl(this));
             rpcServer.start();
@@ -155,6 +156,8 @@ public class RaftNode extends Node {
     private void toLeader() {
         try {
             state = STATE_LEADER;
+            // 持久化term
+            raftLog.getMETA().setTerm(term);
             voteFor = serverInfo.getServerId();
             if (electionFuture != null && !electionFuture.isDone()) {
                 electionFuture.cancel(true);
@@ -169,6 +172,7 @@ public class RaftNode extends Node {
     public void toFollower(long term) {
         state = STATE_FOLLOWER;
         this.term = term;
+        raftLog.getMETA().setTerm(term);
         Logger.info("To follower {}", this.toString());
         if (heartbeatFuture != null && heartbeatFuture.isDone()) {
             heartbeatFuture.cancel(true);

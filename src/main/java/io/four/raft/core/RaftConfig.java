@@ -16,7 +16,7 @@ public class RaftConfig {
     // 选举rpc超时
     private int electionTimeout = 5000;
 
-    private long maxFileSize = 1024*1024;
+    private long maxFileSize = 10;
 
     private int maxAppendLogs = Integer.MAX_VALUE;
 
