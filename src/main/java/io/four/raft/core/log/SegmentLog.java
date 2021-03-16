@@ -16,6 +16,7 @@ import static io.four.raft.core.Utils.format;
 public class SegmentLog {
     protected long startIndex;
     protected List<LogEntry> logs;
+
     List<Long> offs;
     RandomAccessFile file;
     String fileName;
@@ -30,7 +31,6 @@ public class SegmentLog {
     }
 
     public LogEntry logEntry(Long index) {
-        //System.out.println(index + "-" + startIndex + "-" + logs.size());
         if(index >= startIndex + logs.size()) {
             return null;
         }

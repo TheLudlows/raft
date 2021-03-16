@@ -181,7 +181,6 @@ public class RaftNode extends Node {
         toFollower(term);
     }
 
-
     private void startHeartbeat() {
         if (heartbeatFuture != null && !heartbeatFuture.isDone()) {
             heartbeatFuture.cancel(true);

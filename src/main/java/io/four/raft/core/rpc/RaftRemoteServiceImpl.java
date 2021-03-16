@@ -22,18 +22,16 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
     @Override
     public VoteResponse preVote(VoteRequest request) {
         raftNode.getLock().lock();
-        Server server = raftNode.getServerInfo();
         VoteResponse.Builder builder = VoteResponse.newBuilder()
-                .setServerId(server.getServerId())
+                .setServerId(raftNode.getServerInfo().getServerId())
                 .setGranted(false)
                 .setTerm(raftNode.getTerm());
         try {
-            Logger.info("Pre vote from {}", format(request));
             if (raftNode.getTerm() <= request.getTerm() && raftNode.inCluster(request.getServerId())
                     && checkLog(request.getLastLogTerm(), request.getLastLogIndex())) {
                 builder.setGranted(true);
-                Logger.info("Pre vote from {}", format(request));
             }
+            Logger.info("Pre vote from {} voted {}", format(request),builder.getGranted());
         } catch (Exception e) {
             Logger.error("RaftRemoteServiceImpl preVote err", e);
         } finally {
@@ -49,7 +47,6 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
                 .setGranted(false).setTerm(raftNode.getTerm())
                 .setServerId(raftNode.getServerInfo().getServerId());
         try {
-            Logger.info("Vote for {}", format(request));
             if (raftNode.getTerm() > request.getTerm() || !raftNode.inCluster(request.getServerId())) {
                 return builder.build();
             }
@@ -59,8 +56,8 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
                     builder.setGranted(true);
                     raftNode.setTerm(request.getTerm());
                     raftNode.setVoteFor(request.getServerId());
-                    Logger.info("Vote for {}", raftNode.toString(), format(request));
                 }
+                Logger.info("Vote req {} cur {}", format(request), raftNode.toString());
             }
         } catch (Exception e) {
             Logger.error("RaftRemoteServiceImpl vote err", e);
