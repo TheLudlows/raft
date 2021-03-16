@@ -7,7 +7,6 @@ public class node {
         String servers = args[0];
         String local = args[1];
         RaftNode raftNode = new RaftNode(servers, local, data -> System.out.println("apply data"));
-        raftNode.init();
         Thread.sleep(5000);
         int n = 1;
         while (n < 10) {

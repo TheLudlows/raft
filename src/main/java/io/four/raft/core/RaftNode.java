@@ -1,8 +1,6 @@
 package io.four.raft.core;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -44,6 +42,11 @@ public class RaftNode extends Node {
             this.clusterConfig = ClusterConfig.newBuilder().addAllServers(servers).build();
             this.rpcServer = new RpcServer(serverInfo.getHost(), serverInfo.getPort());
             this.raftLog = new RaftLog(config.getDir() + serverInfo.getServerId(), config.getMaxFileSize());
+
+            this.rpcServer.registerService(stateMachine);
+            this.rpcServer.registerService(new RaftRemoteServiceImpl(this));
+            rpcServer.start();
+            startElectionTask();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -51,13 +54,6 @@ public class RaftNode extends Node {
 
     public RaftNode(String servers, String serverInfo, StateMachine stateMachine) {
         this(parseServers(servers), parseServer(serverInfo), stateMachine, new RaftConfig());
-    }
-
-    public void init() {
-        this.rpcServer.registerService(stateMachine);
-        this.rpcServer.registerService(new RaftRemoteServiceImpl(this));
-        rpcServer.start();
-        startElectionTask();
     }
 
     public void startElectionTask() {
