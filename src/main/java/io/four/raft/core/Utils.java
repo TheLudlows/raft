@@ -46,42 +46,11 @@ public class Utils {
         }
     }
 
-    public static final int toInt(byte[] bytes) {
-        if (bytes.length != 4) {
-            throw new UnsupportedOperationException("unSupport len" + bytes.length);
-        }
-        int res = 0;
-        for (int i = 0; i < bytes.length; i++) {
-            res += (bytes[i] & 0xff) << ((3 - i) * 8);
-        }
-        return res;
-    }
-
-    public static final byte[] toByte(int v) {
-        byte[] bytes = new byte[4];
-        bytes[0] = (byte) ((v >>> 24) & 0xFF);
-        bytes[1] = (byte) ((v >>> 16) & 0xFF);
-        bytes[2] = (byte) ((v >>> 8) & 0xFF);
-        bytes[3] = (byte) ((v >>> 0) & 0xFF);
-        return bytes;
-    }
-
     public static final File createFile(String name) throws IOException {
         File file = new File(name);
         if(!file.exists()){
             file.createNewFile();
         }
         return file;
-    }
-
-    public static void main(String[] args) {
-        int n1 = 356;
-        int n2 = 10000000;
-        System.out.println(Integer.SIZE);
-        System.out.println(toInt(toByte(n1)));
-        System.out.println(toInt(toByte(n2)));
-
-        System.out.println(true || false && true);
-
     }
 }

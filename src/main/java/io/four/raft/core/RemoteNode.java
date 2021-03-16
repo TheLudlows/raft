@@ -5,7 +5,6 @@ import com.baidu.brpc.client.RpcClient;
 import com.baidu.brpc.client.channel.Endpoint;
 import io.four.raft.core.rpc.RaftRemoteService;
 import io.four.raft.proto.Raft.*;
-import org.tinylog.Logger;
 
 import java.util.List;
 

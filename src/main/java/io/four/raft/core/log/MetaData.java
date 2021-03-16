@@ -19,6 +19,7 @@ public class MetaData {
         buffer = new RandomAccessFile(createFile(fileName), "rw").getChannel().map(FileChannel.MapMode.READ_WRITE, 0, 16);
         first_index = 1;
         buffer.putLong(first_off, first_index);
+        commit_index = buffer.getLong(commit_off);
     }
 
     public long getFirstIndex() {

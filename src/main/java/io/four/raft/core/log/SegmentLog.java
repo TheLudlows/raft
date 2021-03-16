@@ -1,6 +1,5 @@
 package io.four.raft.core.log;
 
-import com.baidu.brpc.utils.GsonUtils;
 import io.four.raft.proto.Raft.*;
 import org.tinylog.Logger;
 

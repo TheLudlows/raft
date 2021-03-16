@@ -29,15 +29,11 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
                 .setTerm(raftNode.getTerm());
         try {
             Logger.info("Pre vote from {}", format(request));
-
             if (raftNode.getTerm() <= request.getTerm() && raftNode.inCluster(request.getServerId())
                     && checkLog(request.getLastLogTerm(), request.getLastLogIndex())) {
                 builder.setGranted(true);
-                builder.setTerm(raftNode.getTerm());
                 Logger.info("Pre vote from {}", format(request));
             }
-            return builder.build();
-
         } catch (Exception e) {
             Logger.error("RaftRemoteServiceImpl preVote err", e);
         } finally {
@@ -49,11 +45,11 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
     @Override
     public VoteResponse vote(VoteRequest request) {
         raftNode.getLock().lock();
-        VoteResponse.Builder builder = VoteResponse.newBuilder();
-        builder.setGranted(false).setTerm(raftNode.getTerm());
+        VoteResponse.Builder builder = VoteResponse.newBuilder()
+                .setGranted(false).setTerm(raftNode.getTerm())
+                .setServerId(raftNode.getServerInfo().getServerId());
         try {
             Logger.info("Vote for {}", format(request));
-
             if (raftNode.getTerm() > request.getTerm() || !raftNode.inCluster(request.getServerId())) {
                 return builder.build();
             }
@@ -63,12 +59,7 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
                     builder.setGranted(true);
                     raftNode.setTerm(request.getTerm());
                     raftNode.setVoteFor(request.getServerId());
-
-                    VoteResponse response = builder.setTerm(raftNode.getTerm())
-                            .setServerId(raftNode.getServerInfo().getServerId())
-                            .build();
                     Logger.info("Vote for {}", raftNode.toString(), format(request));
-                    return response;
                 }
             }
         } catch (Exception e) {
@@ -134,7 +125,6 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
             }
         } catch (Exception e) {
             Logger.warn("Append entry err", e);
-            e.printStackTrace();
         } finally {
             raftNode.getLock().unlock();
         }

@@ -17,6 +17,7 @@ import org.tinylog.Logger;
 import static io.four.raft.core.Node.NodeState.*;
 import static io.four.raft.core.RemoteNode.*;
 import static io.four.raft.core.Utils.*;
+import static java.util.concurrent.CompletableFuture.delayedExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 public class RaftNode extends Node {
@@ -27,10 +28,8 @@ public class RaftNode extends Node {
 
     private final Lock lock = new ReentrantLock();
 
-    private ScheduledFuture electionScheduledFuture;
-    private ScheduledFuture heartbeatScheduledFuture;
-
-    private ScheduledExecutorService scheduledExecutorService;
+    private CompletableFuture electionFuture;
+    private CompletableFuture heartbeatFuture;
     private RpcServer rpcServer;
     protected RaftLog raftLog;
 
@@ -43,7 +42,6 @@ public class RaftNode extends Node {
             this.stateMachine = stateMachine;
             this.config = config;
             this.clusterConfig = ClusterConfig.newBuilder().addAllServers(servers).build();
-            this.scheduledExecutorService = new ScheduledThreadPoolExecutor(2);
             this.rpcServer = new RpcServer(serverInfo.getHost(), serverInfo.getPort());
             this.raftLog = new RaftLog(config.getDir() + serverInfo.getServerId(), config.getMaxFileSize());
         } catch (Exception e) {
@@ -63,11 +61,11 @@ public class RaftNode extends Node {
     }
 
     public void startElectionTask() {
-        if (electionScheduledFuture != null && !electionScheduledFuture.isDone()) {
-            electionScheduledFuture.cancel(true);
+        if (electionFuture != null && !electionFuture.isDone()) {
+            electionFuture.cancel(true);
         }
         long time = round(config.getElectionFrom(), config.getElectionTo());
-        electionScheduledFuture = scheduledExecutorService.schedule(() -> preVote(), time, MILLISECONDS);
+        electionFuture = CompletableFuture.runAsync(() -> preVote(), delayedExecutor(time, MILLISECONDS));
     }
 
     void preVote() {
@@ -162,8 +160,8 @@ public class RaftNode extends Node {
         try {
             state = STATE_LEADER;
             voteFor = serverInfo.getServerId();
-            if (electionScheduledFuture != null && !electionScheduledFuture.isDone()) {
-                electionScheduledFuture.cancel(true);
+            if (electionFuture != null && !electionFuture.isDone()) {
+                electionFuture.cancel(true);
             }
             Logger.info("Become leader {}", this.toString());
             startHeartbeat();
@@ -176,8 +174,8 @@ public class RaftNode extends Node {
         state = STATE_FOLLOWER;
         this.term = term;
         Logger.info("To follower {}", this.toString());
-        if (heartbeatScheduledFuture != null && heartbeatScheduledFuture.isDone()) {
-            heartbeatScheduledFuture.cancel(true);
+        if (heartbeatFuture != null && heartbeatFuture.isDone()) {
+            heartbeatFuture.cancel(true);
         }
         startElectionTask();
     }
@@ -189,10 +187,10 @@ public class RaftNode extends Node {
 
 
     private void startHeartbeat() {
-        if (heartbeatScheduledFuture != null && !heartbeatScheduledFuture.isDone()) {
-            heartbeatScheduledFuture.cancel(true);
+        if (heartbeatFuture != null && !heartbeatFuture.isDone()) {
+            heartbeatFuture.cancel(true);
         }
-        heartbeatScheduledFuture = scheduledExecutorService.schedule(() -> heartBeatJob(), config.getHeartbeatTime(), MILLISECONDS);
+        heartbeatFuture = CompletableFuture.runAsync(() -> heartBeatJob(), delayedExecutor(config.getHeartbeatTime(), MILLISECONDS));
     }
 
     void heartBeatJob() {
@@ -208,7 +206,7 @@ public class RaftNode extends Node {
         return VoteRequest.newBuilder().setServerId(serverInfo.getServerId())
                 .setTerm(term)
                 .setLastLogTerm(raftLog.lastLogTerm())
-                .setLastLogIndex(raftLog.lastLogTerm())
+                .setLastLogIndex(raftLog.lastLogIndex())
                 .build();
     }
 
@@ -352,7 +350,7 @@ public class RaftNode extends Node {
             System.out.println("follow apply " + commitIndex);
             commitIndex++;
         }
-        if(leaderCommit > raftLog.commitIndex()) {
+        if (leaderCommit > raftLog.commitIndex()) {
             System.out.println("leader  commit " + leaderCommit);
             raftLog.commitIndex(leaderCommit);
         }
