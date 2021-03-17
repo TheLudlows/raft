@@ -43,6 +43,7 @@ public class RaftNode extends Node {
             this.rpcServer = new RpcServer(serverInfo.getHost(), serverInfo.getPort());
             this.raftLog = new RaftLog(config.getDir() + serverInfo.getServerId(), config.getMaxFileSize());
 
+            others.forEach(e -> e.setNextIndex(raftLog.lastLogIndex() + 1));
             super.term = raftLog.getMETA().getTerm();
             this.rpcServer.registerService(stateMachine);
             this.rpcServer.registerService(new RaftRemoteServiceImpl(this));

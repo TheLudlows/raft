@@ -93,14 +93,15 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
             }
             if (raftNode.getState() != Node.NodeState.STATE_LEADER && raftNode.getVoteFor() == request.getServerId()) {
                 raftNode.startElectionTask();
+                if (request.getPrevLogIndex() != raftNode.getRaftLog().lastLogIndex() || raftNode.getRaftLog().logTerm(request.getPrevLogIndex()) != request.getPrevLogTerm()) {
+                    return buildErrRsp();
+                }
                 if (request.getEntriesList().size() != 0) {
                     // log
                     // check pre
-                    if (raftNode.getRaftLog().logTerm(request.getPrevLogIndex()) != request.getPrevLogTerm()) {
-                        return buildErrRsp();
-                    }
                     long start = request.getPrevLogIndex() + 1;
                     List<LogEntry> es = new ArrayList<>();
+                    // 跳过相同的日志
                     for (int i = 0; i < request.getEntriesCount(); i++) {
                         if (request.getEntries(i).getTerm() != raftNode.getRaftLog().logTerm(start)) {
                             es = request.getEntriesList().subList(i, request.getEntriesCount());
@@ -108,6 +109,7 @@ public class RaftRemoteServiceImpl implements RaftRemoteService {
                         }
                         start++;
                     }
+                    // 删除与leader不同的后面的日志
                     while (start < raftNode.getRaftLog().lastLogIndex()) {
                         System.out.println("rm last log");
                         raftNode.getRaftLog().rmLogLast();
